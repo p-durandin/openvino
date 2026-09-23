@@ -16,6 +16,7 @@
 
 #include "openvino/reference/convolution.hpp"
 #include "convolution/convolution_kernel_b_fs_yx_fsv16.h"
+#include "convolution/convolution_kernel_b_fs_yx_fsv16_1x1.h"
 #include "convolution/convolution_params.h"
 
 #include <algorithm>
@@ -108,6 +109,42 @@ kernel_selector::convolution_params make_convolution_gpu_bfyx_f16_params(bool al
     params.dilation = kernel_selector::uSize(1, 1, 1);
     params.padding_begin = kernel_selector::uSize(1, 1, 0);
     params.padding_end = kernel_selector::uSize(1, 1, 0);
+
+    return params;
+}
+
+kernel_selector::convolution_params make_convolution_gpu_bfyx_f16_1x1_params(bool allow_input_reordering,
+                                                                              size_t x_pad_before = 0,
+                                                                              size_t x_pad_after = 0,
+                                                                              float padded_value = 0.f) {
+    kernel_selector::convolution_params params;
+    params.layerID = "conv_padding_test_1x1";
+    params.allowStaticInputReordering = true;
+    params.allowInputReordering = allow_input_reordering;
+    params.engineInfo.supports_fp16 = true;
+    params.engineInfo.maxWorkGroupSize = 256;
+    params.engineInfo.maxThreadsPerDevice = 4096;
+    params.engineInfo.deviceType = kernel_selector::dev_type::integrated_gpu;
+
+    params.inputs.push_back(make_padded_tensor(std::vector<size_t>{5, 3, 32, 1},
+                                               kernel_selector::Datatype::F16,
+                                               kernel_selector::DataLayout::b_fs_yx_fsv16,
+                                               x_pad_before,
+                                               x_pad_after,
+                                               0,
+                                               0,
+                                               padded_value));
+    params.outputs.push_back(kernel_selector::DataTensor(std::vector<size_t>{5, 3, 32, 1},
+                                                         kernel_selector::Datatype::F16,
+                                                         kernel_selector::DataLayout::b_fs_yx_fsv16));
+    params.weights = kernel_selector::WeightsTensor(std::vector<size_t>{1, 1, 32, 32},
+                                                    kernel_selector::WeightsType::F16,
+                                                    kernel_selector::WeightsLayout::oiyx);
+    params.filterSize = kernel_selector::uSize(1, 1, 1);
+    params.stride = kernel_selector::uSize(1, 1, 1);
+    params.dilation = kernel_selector::uSize(1, 1, 1);
+    params.padding_begin = kernel_selector::uSize(0, 0, 0);
+    params.padding_end = kernel_selector::uSize(0, 0, 0);
 
     return params;
 }
@@ -13337,4 +13374,31 @@ TEST(convolution_kernel_selector_bfyx_f16, rejects_missing_blocked_padding_witho
 
     auto kernels_data = kernel.GetKernelsData(params);
     ASSERT_TRUE(kernels_data.empty());
+}
+
+TEST(convolution_kernel_selector_bfyx_f16_1x1, accepts_zero_padded_input_without_reorder) {
+    kernel_selector::ConvolutionKernel_b_fs_yx_fsv16_1x1 kernel;
+    auto params = make_convolution_gpu_bfyx_f16_1x1_params(true, 1, 2);
+
+    auto kernels_data = kernel.GetKernelsData(params);
+    ASSERT_EQ(kernels_data.size(), size_t(1));
+    ASSERT_FALSE(kernels_data[0].reorderInput);
+}
+
+TEST(convolution_kernel_selector_bfyx_f16_1x1, accepts_nonzero_padded_input_without_reorder) {
+    kernel_selector::ConvolutionKernel_b_fs_yx_fsv16_1x1 kernel;
+    auto params = make_convolution_gpu_bfyx_f16_1x1_params(true, 1, 2, 1.0f);
+
+    auto kernels_data = kernel.GetKernelsData(params);
+    ASSERT_EQ(kernels_data.size(), size_t(1));
+    ASSERT_FALSE(kernels_data[0].reorderInput);
+}
+
+TEST(convolution_kernel_selector_bfyx_f16_1x1, accepts_when_input_reordering_is_disallowed) {
+    kernel_selector::ConvolutionKernel_b_fs_yx_fsv16_1x1 kernel;
+    auto params = make_convolution_gpu_bfyx_f16_1x1_params(false, 1, 2);
+
+    auto kernels_data = kernel.GetKernelsData(params);
+    ASSERT_EQ(kernels_data.size(), size_t(1));
+    ASSERT_FALSE(kernels_data[0].reorderInput);
 }
