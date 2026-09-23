@@ -242,14 +242,18 @@ bool ConvolutionKernel_b_fs_yx_fsv16::UpdatePaddedInputParams(convolution_params
         const auto x_blocks = CeilDiv(params.outputs[0].X().v, block_width);
 
         if (x_blocks != 0) {
-            const auto blocked_input_line_size = params.stride.x * (block_width - 1) +
-                                                 (params.filterSize.x - 1) * params.dilation.x + 1;
+            const int64_t block_width_i64 = static_cast<int64_t>(block_width);
+            const int64_t x_blocks_i64 = static_cast<int64_t>(x_blocks);
+            const int64_t stride_x_i64 = static_cast<int64_t>(params.stride.x);
+            const int64_t filter_size_x_i64 = static_cast<int64_t>(params.filterSize.x);
+            const int64_t dilation_x_i64 = static_cast<int64_t>(params.dilation.x);
+            const int64_t input_x_i64 = static_cast<int64_t>(params.inputs[0].X().v);
+            const int64_t blocked_input_line_size = stride_x_i64 * (block_width_i64 - 1) +
+                                                    (filter_size_x_i64 - 1) * dilation_x_i64 + 1;
             const int64_t last_block_input_x =
-                static_cast<int64_t>((x_blocks - 1) * block_width * params.stride.x) -
+                (x_blocks_i64 - 1) * block_width_i64 * stride_x_i64 -
                 static_cast<int64_t>(params.padding_begin.x);
-            const int64_t required_after =
-                last_block_input_x + static_cast<int64_t>(blocked_input_line_size) -
-                static_cast<int64_t>(params.inputs[0].X().v);
+            const int64_t required_after = last_block_input_x + blocked_input_line_size - input_x_i64;
 
             std::vector<Tensor::Pad> pad(req_input.GetDims().size(), {0, 0});
             for (size_t i = 0; i < req_input.GetDims().size(); i++) {
@@ -315,21 +319,28 @@ JitConstants ConvolutionKernel_b_fs_yx_fsv16::GetJitConstants(const convolution_
         jit.Merge(MakeFusedOpsJitConstants(params, {conf_vec, conf_scalar}));
     }
 
-    const size_t blocked_input_line_size = params.stride.x * (blockWidth - 1) +
-                                           (params.filterSize.x - 1) * params.dilation.x + 1;
+    const int64_t block_width_i64 = static_cast<int64_t>(blockWidth);
+    const int64_t stride_x_i64 = static_cast<int64_t>(params.stride.x);
+    const int64_t filter_size_x_i64 = static_cast<int64_t>(params.filterSize.x);
+    const int64_t dilation_x_i64 = static_cast<int64_t>(params.dilation.x);
+    const int64_t blocked_input_line_size_i64 = stride_x_i64 * (block_width_i64 - 1) +
+                                                (filter_size_x_i64 - 1) * dilation_x_i64 + 1;
+    const size_t blocked_input_line_size = static_cast<size_t>(blocked_input_line_size_i64);
     const size_t input_line_size = std::min(blocked_input_line_size, input.X().v + input.X().pad.Total());
     const size_t x_blocks = CeilDiv(output.X().v, blockWidth);
 
     bool use_blocked_x_padding = false;
     if (!input.X().is_dynamic && !output.X().is_dynamic && x_blocks != 0) {
+        const int64_t x_blocks_i64 = static_cast<int64_t>(x_blocks);
+        const int64_t input_x_i64 = static_cast<int64_t>(input.X().v);
         const int64_t first_block_input_x = -static_cast<int64_t>(params.padding_begin.x);
         const int64_t last_block_input_x =
-            static_cast<int64_t>((x_blocks - 1) * blockWidth * params.stride.x) -
+            (x_blocks_i64 - 1) * block_width_i64 * stride_x_i64 -
             static_cast<int64_t>(params.padding_begin.x);
         const size_t required_x_pad_before = first_block_input_x < 0 ? static_cast<size_t>(-first_block_input_x) : 0;
-        const int64_t last_block_input_end = last_block_input_x + static_cast<int64_t>(blocked_input_line_size);
-        const size_t required_x_pad_after = last_block_input_end > static_cast<int64_t>(input.X().v)
-            ? static_cast<size_t>(last_block_input_end - static_cast<int64_t>(input.X().v))
+        const int64_t last_block_input_end = last_block_input_x + blocked_input_line_size_i64;
+        const size_t required_x_pad_after = last_block_input_end > input_x_i64
+            ? static_cast<size_t>(last_block_input_end - input_x_i64)
             : 0;
 
         use_blocked_x_padding = input.X().pad.before >= required_x_pad_before &&
