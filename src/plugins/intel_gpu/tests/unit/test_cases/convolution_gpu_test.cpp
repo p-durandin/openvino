@@ -13319,6 +13319,18 @@ TEST(convolution_kernel_selector_bfyx_f16, reuses_sufficient_zero_padding_withou
     ASSERT_FALSE(kernels_data[0].reorderInput);
 }
 
+TEST(convolution_kernel_selector_bfyx_f16, requests_reorder_for_nonzero_existing_padding) {
+    kernel_selector::ConvolutionKernel_b_fs_yx_fsv16 kernel;
+    auto params = make_convolution_gpu_bfyx_f16_params(true, 1, 2, 1.0f);
+
+    auto kernels_data = kernel.GetKernelsData(params);
+    ASSERT_EQ(kernels_data.size(), size_t(1));
+    ASSERT_TRUE(kernels_data[0].reorderInput);
+
+    const auto& updated_params = *static_cast<kernel_selector::convolution_params*>(kernels_data[0].params.get());
+    ASSERT_EQ(updated_params.inputs[0].GetPaddedVal(), 0.f);
+}
+
 TEST(convolution_kernel_selector_bfyx_f16, rejects_missing_blocked_padding_without_reorder_permission) {
     kernel_selector::ConvolutionKernel_b_fs_yx_fsv16 kernel;
     auto params = make_convolution_gpu_bfyx_f16_params(false);
