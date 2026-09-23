@@ -251,7 +251,7 @@ bool ConvolutionKernel_b_fs_yx_fsv16::UpdatePaddedInputParams(convolution_params
                 last_block_input_x + static_cast<int64_t>(blocked_input_line_size) -
                 static_cast<int64_t>(params.inputs[0].X().v);
 
-            std::vector<Tensor::Pad> pad{{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}};
+            std::vector<Tensor::Pad> pad(req_input.GetDims().size(), {0, 0});
             for (size_t i = 0; i < req_input.GetDims().size(); i++) {
                 pad[i] = req_input.GetDims()[i].pad;
             }
