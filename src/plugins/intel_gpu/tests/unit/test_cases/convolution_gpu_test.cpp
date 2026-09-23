@@ -148,6 +148,12 @@ kernel_selector::convolution_params make_convolution_gpu_bfyx_f16_1x1_params(boo
 
     return params;
 }
+
+kernel_selector::DataTensor make_dynamic_x_tensor(const kernel_selector::DataTensor& tensor) {
+    auto ndims = tensor.GetDims();
+    ndims[0].is_dynamic = true;
+    return {ndims, tensor.GetDType(), tensor.GetLayout(), 0, 0, tensor.GetPaddedVal()};
+}
 }  // namespace
 
 template <typename InputT>
@@ -13401,4 +13407,19 @@ TEST(convolution_kernel_selector_bfyx_f16_1x1, accepts_when_input_reordering_is_
     auto kernels_data = kernel.GetKernelsData(params);
     ASSERT_EQ(kernels_data.size(), size_t(1));
     ASSERT_FALSE(kernels_data[0].reorderInput);
+}
+
+TEST(convolution_kernel_selector_bfyx_f16, dynamic_x_uses_explicit_padding_path_without_reorder) {
+    kernel_selector::ConvolutionKernel_b_fs_yx_fsv16 kernel;
+    auto params = make_convolution_gpu_bfyx_f16_params(false, 1, 1);
+    params.inputs[0] = make_dynamic_x_tensor(params.inputs[0]);
+    params.outputs[0] = make_dynamic_x_tensor(params.outputs[0]);
+    params.has_explicit_paddings = true;
+
+    auto kernels_data = kernel.GetKernelsData(params);
+    ASSERT_EQ(kernels_data.size(), size_t(1));
+    ASSERT_FALSE(kernels_data[0].reorderInput);
+    ASSERT_NE(kernels_data[0].kernels[0].code.kernelString, nullptr);
+    ASSERT_EQ(kernels_data[0].kernels[0].code.kernelString->jit.find("CONV_FSV16_USE_BLOCKED_X_PADDING 1"),
+              std::string::npos);
 }
