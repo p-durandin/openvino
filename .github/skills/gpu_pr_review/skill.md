@@ -1,32 +1,21 @@
----
-name: openvino-gpu-pr-review
-description: >
-  Coordinates evidence-based code review of OpenVINO Intel GPU pull requests.
-  Use for changes affecting the Intel GPU plugin, GPU kernels, kernel selector,
-  graph optimizations, GPU runtime integration, memory management, GPU tests,
-  performance, precision support, or Intel GPU platform enablement.
----
-
-# OpenVINO Intel GPU PR Review Coordinator
-
 ## Purpose
 
 Review OpenVINO Intel GPU pull requests for:
 
-1. Functional correctness
-2. Performance regressions and inefficient execution
-3. Intel GPU platform and runtime compatibility
-4. Architecture and code clarity
-5. Implementation and validation completeness
+1. Code correctness and completeness
+2. Functional regressions
+3. Performance regressions and inefficient execution
+4. Intel GPU platform and runtime compatibility
+5. Architecture and code clarity
+6. Validation and test coverage
+7. Possible improvements
 
+PR should be reviewed from code correctness and completeness point of view.
 Functional correctness and performance are the primary review dimensions.
 
 Architecture, maintainability, test quality, and code clarity are important
 secondary dimensions. They become blocking only when they create a concrete
 correctness, performance, compatibility, or significant maintenance risk.
-
-This review is advisory. It does not approve a pull request and does not
-replace review by the responsible OpenVINO GPU code owners.
 
 ## Review principles
 
