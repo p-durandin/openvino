@@ -618,3 +618,32 @@ Blocking defect, pre-merge verification, follow-up validation, or question.
 
 Confidence:
 High, Medium, or Low.
+
+## Review summary table
+
+After the detailed findings, include a concise `## Review summary` table.
+Use one row per material review area or root cause, not one row per minor
+observation. Include:
+
+| Area | Assessment | Evidence / key condition | Required action |
+|---|---|---|---|
+
+Use one of these assessments:
+
+- `✅ No issue found` — only for the inspected scope; state that scope in the
+  evidence column.
+- `⚠️ Needs verification` — an invariant, test, platform, or benchmark gap
+  remains and no defect is proven.
+- `❌ Confirmed defect` — a reachable defect is supported by final-head evidence.
+- `❓ Design question` — product or architecture-owner input is required.
+- `— Not applicable` — omit the row instead when possible.
+
+The evidence column must name the final-head evidence and relevant execution
+condition. The action column must be concrete: code change, targeted test,
+benchmark, trace, or owner decision. Do not summarize passing CI as proof of
+functional correctness, and do not use `correct` or `safe` without a stated
+scope.
+
+Include a final `Merge blockers` row only when it clearly distinguishes proven
+blocking defects from pre-merge verification requests. Do not recommend
+approval or merge.
