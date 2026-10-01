@@ -29,6 +29,17 @@ Follow these principles throughout the review:
   the expected mechanism or citing provided measurements.
 - Do not treat missing evidence as proof that a defect exists.
 - Prefer a small number of actionable findings over many speculative comments.
+- Inspect the final PR head, not only an earlier commit, stale review comment,
+  author explanation, or summarized diff.
+- Treat bot and human review comments as leads to investigate, not as evidence
+  that a finding remains applicable at the final PR head.
+- Do not claim that every path, load site, kernel variant, or runtime is covered
+  unless each applicable variant was directly inspected or a shared invariant
+  proves the coverage.
+- Separate a proven defect from an invariant that still needs verification and
+  from a test, benchmark, or platform-coverage gap.
+- When evidence is incomplete, state exactly what was inspected and what remains
+  unverified. Do not fill gaps with inference from similarly structured code.
 - Review the whole affected execution path, not only isolated changed lines.
 - Consider interactions across files when the implementation spans layers.
 - Do not recommend approval or merge.
@@ -37,6 +48,30 @@ Follow these principles throughout the review:
 ## Review workflow
 
 Perform the review in the following order.
+
+### Step 0: Establish the review baseline
+
+Record the facts needed to ensure that the review targets the current change:
+
+- PR head SHA, base SHA, and whether the PR changed while it was being reviewed
+- Files and diff hunks at the final PR head
+- CI/check conclusion for each relevant check: passed, failed, pending, skipped,
+  cancelled, or neutral; do not summarize this merely as "completed"
+- Existing approvals, change requests, unresolved review threads, and their
+  relevance at the final PR head
+- Existing bot or human findings and the commit/line to which each applies
+
+For each relevant existing finding, classify it before relying on it:
+
+1. **Still applicable** — the final PR head retains the triggering code.
+2. **Fixed** — cite the final-head code or test that resolves it.
+3. **Outdated or inapplicable** — explain the changed condition or incorrect
+   premise.
+4. **Not yet verifiable** — identify the missing file, variant, runtime, test,
+   or platform evidence.
+
+Do not describe an approval by an assignee or author as merge-readiness evidence.
+If repository policy is unavailable, report required-approval status as unknown.
 
 ### Step 1: Understand the PR intent
 
@@ -106,7 +141,40 @@ narrower scope.
 When the exact platform scope cannot be established, report it as unknown or
 as a validation gap.
 
-### Step 4: Apply the relevant review domains
+### Step 4: Map the affected execution path and behavior matrix
+
+Before reporting a cross-layer concern, map the changed path from its input
+contract through implementation and test coverage. For example:
+
+```text
+graph transformation / API input
+  -> primitive or descriptor
+  -> implementation and kernel selection
+  -> JIT constants and kernel arguments
+  -> each relevant kernel variant
+  -> fallback or rejection path
+  -> reference, functional, and performance tests
+```
+
+For changes involving precision, quantization, kernel generation, dispatch, or
+platform selection, build a compact behavior matrix. Include only applicable
+dimensions, such as:
+
+- device generation or capability guard;
+- OpenCL and Level Zero paths when both are supported;
+- optimized path, fallback path, and explicit rejection path;
+- prefill/decode, first-token/second-token, paged/non-paged, or other kernel
+  variants;
+- precision, storage encoding, symmetric/asymmetric mode, and zero-point form;
+- static/dynamic shapes, boundary/tail sizes, and layout variants;
+- existing behavior changed by the PR versus newly enabled behavior.
+
+Map tests and measurements to the matrix. Mark cells as **covered** only with
+direct evidence. Mark all remaining relevant cells as **uncovered**, **unknown**,
+or **intentionally unsupported**, and identify the guard that enforces an
+unsupported cell.
+
+### Step 5: Apply the relevant review domains
 
 Always perform the functional-correctness and completeness reviews.
 
@@ -178,6 +246,29 @@ Check changed behavior for:
 
 For each suspected defect, identify the exact condition under which it occurs.
 
+For generated or multi-variant GPU kernels, trace the condition through:
+
+- host-side selection and validation;
+- descriptor or primitive state;
+- JIT constant generation;
+- kernel argument construction and binding;
+- every kernel variant compiled for the affected configuration;
+- fallback, build-failure, and unsupported-device behavior.
+
+For packed or quantized data, verify every applicable load/decode/dequantize
+site and distinguish storage representation from logical value representation.
+In particular, check:
+
+- signed versus unsigned storage;
+- zero-point convention and where it is applied;
+- scale/group indexing and broadcast rules;
+- byte packing, nibble ordering, and address/pitch conversion;
+- vector/tile tail behavior and whether padded lanes can be stored.
+
+If only some variants can be inspected, report the result as partial. For
+example, say "the decode kernel paths were inspected; the prefill variant was
+not inspected" rather than claiming that all load sites are covered.
+
 Do not report generic possibilities such as "this may cause a race" without
 showing the shared state, concurrent access, and missing synchronization.
 
@@ -226,6 +317,15 @@ example:
 
 If the mechanism is plausible but impact is not established, report a
 validation gap rather than a confirmed regression.
+
+For every performance-relevant selection, dispatch, layout, or kernel change,
+separate:
+
+- **newly enabled paths**, where absolute expected performance should be shown;
+- **pre-existing paths changed by the PR**, which require comparison with the
+  base commit for the affected workload and GPU generation;
+- **correctness-driven trade-offs**, which should state the expected mechanism
+  and the accepted scope rather than implying an unmeasured regression.
 
 ## Minimum architecture and clarity review
 
@@ -299,6 +399,20 @@ Acceptable evidence includes:
 - Inconsistency between related runtime paths
 - A benchmark or test result provided with the PR
 - A new code path for which no safe fallback exists
+
+Evidence from a final-head source is stronger than an indirect source. Use the
+following order of preference:
+
+1. Final-head changed code, complete file view, or exact diff hunk
+2. Directly related final-head test, benchmark, or CI result
+3. Call path, invariant, or existing implementation contract verified against
+   the final head
+4. Earlier review comment or author explanation, followed by final-head
+   verification
+
+An author response, bot finding, truncated file view, or inferred similarity to
+another branch is not sufficient by itself to claim a defect is fixed or that
+all variants are correct. It may justify a focused verification request.
 
 Unacceptable evidence includes:
 
@@ -382,6 +496,10 @@ Use `HIGH` for a probable or established issue that can cause:
 
 High findings are blocking unless evidence disproves the concern or a
 responsible human owner explicitly accepts the behavior.
+
+For a High finding, demonstrate that the affected configuration is supported or
+explicitly promised by the PR, and show a reachable triggering path. Otherwise
+use Medium for an invariant risk, validation gap, or verification request.
 
 ### MEDIUM
 
@@ -471,6 +589,15 @@ path/to/file.cpp:line
 Evidence:
 Describe the changed code and the exact condition that triggers the concern.
 
+Evidence status:
+State whether this conclusion was verified against the final PR head. Identify
+the inspected variant(s), relevant guard(s), and any uninspected variant(s).
+
+Counterevidence:
+List the validation, fallback, test, benchmark, or invariant that could prevent
+the issue. Explain why it is sufficient, insufficient, or still unverified.
+Use `None identified` only after checking the relevant path.
+
 Impact:
 Describe the correctness, performance, memory, compatibility, or maintenance
 consequence.
@@ -485,6 +612,9 @@ Propose a concrete code correction or narrowly defined validation action.
 Required evidence:
 State the test, benchmark, trace, comparison, or invariant needed to resolve
 the finding.
+
+Disposition:
+Blocking defect, pre-merge verification, follow-up validation, or question.
 
 Confidence:
 High, Medium, or Low.
