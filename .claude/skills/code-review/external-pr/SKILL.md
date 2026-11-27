@@ -23,7 +23,7 @@ that a change is safe to merge. Do not infer risk from external authorship.
 3. Confirm each finding against actual source code and documented requirements.
    Distinguish source content from diff markers and review annotations.
 4. Report only high-confidence, actionable issues. Separate confirmed findings
-   from questions and unavailable validation.
+   from questions.
 5. Recommend author changes or reviewer-controlled full CI using the decision
    rules below.
 
@@ -87,19 +87,6 @@ For a revert, check whether it restores a previously fixed problem. Request
 tests only for a concrete regression risk; if the original rationale is
 unavailable, record that as a validation gap.
 
-## CI assessment
-
-- Inspect available checks and distinguish change-induced failures from
-  infrastructure, network, resource, or pre-existing failures.
-- Do not ask the author to fix failures without evidence linking them to the
-  submitted change.
-- Do not request duplicate validation when equivalent required checks already
-  pass for the current PR revision.
-- Full CI must use the repository's approved external-contribution process.
-  Never recommend exposing secrets, relaxing permissions, or bypassing
-  protections to run untrusted PR code.
-- A CI recommendation is not authorization to trigger it.
-
 ## Recommendation
 
 Choose one primary recommendation:
@@ -121,9 +108,6 @@ concern that makes CI execution inappropriate.
 Recommend running the repository's full applicable CI through its approved
 external-PR process. State any remaining non-safety validation gaps.
 
-If equivalent full CI already passes for the current revision, say that no
-rerun is needed and recommend continuing normal maintainer review.
-
 ### Reviewer: investigate before CI
 
 Use when incomplete evidence or unresolved safety concerns prevent a reliable
@@ -139,8 +123,6 @@ Start with the recommendation, then provide:
   Keep one issue per finding.
 - **Test coverage:** Required, already covered, not required, or undetermined,
   with a brief explanation.
-- **Validation:** Checks inspected, their relevant results, and any unavailable
-  evidence. Never claim tests were run unless they were actually run.
 
 If no actionable issue is found, say so explicitly. Say "No harmful behavior
 identified in the reviewed changes," not "The code is safe."
